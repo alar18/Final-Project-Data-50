@@ -1,0 +1,206 @@
+---
+title: "Project 5"
+output: html_notebook
+---
+
+56a6f28b557a44f3d4a69fa3a9008fcc
+
+Part 1
+Try to send a GET request to some of the example queries and inspect the result. Inspired just by these examples, how would create new requests:
+
+
+Have Will Ferrell and Liam Neeson even been in a movie together?
+Can you find kids movies with Tom Cruise in it?
+
+```{r}
+# First I add all the libraries I will need
+
+library(stringr)
+library(httr)
+library(purrr)
+library(magrittr)
+
+# After I have got my API key, I extract the data
+
+my_key <- "56a6f28b557a44f3d4a69fa3a9008fcc"
+
+# What are the highest grossing dramas from 2010?
+
+str_glue("https://api.themoviedb.org/3",
+        "/discover/movie?",
+        "api_key={my_key}",
+        "&primary_release_year=2010",
+        "&with_genres=18",
+        "&sort_by=vote_average.desc",
+        "&vote_count.gte=10") %>%
+  GET() %>% 
+  content() %>% 
+  pluck("results") %>%
+  map_df(extract, c("title")) %>%
+  View("movies")
+
+```
+
+
+1 Once Upon a Time the City of Fools
+2 Shutter Island
+3 Harmony
+4 Incendies
+5 Finisterrae
+6 Magic & Bird: A Courtship of Rivals
+7 The Disappearance of Haruhi Suzumiya
+8 678
+9 Un altro mondo
+10 My Name Is Khan
+11 Temple Grandin
+12 I Don't Want to Go Back Alone
+13 Elite Squad: The Enemy Within
+14 Guzaarish
+15 The King's Speech
+16 Vinnaithaandi Varuvaayaa
+17 Montevideo, God Bless You!
+18 Van Gogh: Painted with Words
+19 November Christmas
+20 Liar Game: The Final Stage
+
+```{r}
+# Have Will Ferrell and Liam Neeson even been in a movie together?
+
+str_glue("https://api.themoviedb.org/3",
+        "/discover/movie?",
+        "api_key={my_key}",
+        "&&with_people=23659,3896",
+        "&sort_by=popularity.desc") %>% 
+  GET() %>% 
+  content() %>% 
+  pluck("results") %>%
+  map_df(extract, c("title")) %>%
+  View("movies1")
+
+```
+
+1 The Lego Movie
+2 Anchorman 2: The Legend Continues
+3 Daddy's Home 2
+
+```{r}
+
+
+# Can you find kids movies with Tom Cruise in it?
+
+str_glue("https://api.themoviedb.org/3",
+        "/discover/movie?",
+        "api_key={my_key}",
+        "&with_cast=500",
+        "&certification.lte=G",
+        "&sort_by=popularity.desc") %>% 
+  GET() %>% 
+  content() %>% 
+  pluck("results") %>%
+  map_df(extract, c("title")) %>%
+  View("movies2")
+
+
+
+```
+
+1 Mission: Impossible - Fallout
+2 Edge of Tomorrow
+3 Mission: Impossible - Rogue Nation
+4 Mission: Impossible
+5 Interview with the Vampire
+6 Mission: Impossible II
+7 Mission: Impossible - Ghost Protocol
+8 Mission: Impossible III
+9 The Last Samurai
+10 Minority Report
+11 Collateral
+12 Jack Reacher
+13 Oblivion
+14 Jack Reacher: Never Go Back
+15 Eyes Wide Shut
+16 The Mummy
+17 Top Gun
+18 Legend
+19 War of the Worlds
+20 Magnolia
+
+Part 2
+As you can see in the examples, there are two types of parameters used in the URLs:
+
+parameters that take an "explicit" value, like primary_release_year= or sort_by=. When you read their values (e.g. 2014 or popularity.desc), you know straight away what is queried.
+parameters that take an "id" value, like with_cast= or with_genres=. When you read their values (e.g. 23659 or 878), you don't really know what is queried if you don't know what id means what.
+This is common as well with APIs. Parameters that might have complicated/long/confusing spelling (like the title of a movie or the full name of an actor) often use ID. What if two movies or two actors have the same name? That's also a situation where IDs would help.
+
+The problem is that you need to find these ids before sending the query that you are really interested in. And to do that you need to prepare another query. This is when you start reading the full API documentation.
+
+In this case, you would want to check the Search endpoints. The Search endpoints let you search by name and find the id for different kinds of resources (companies, people, movie title…). If you are unsure on how to write these URLs, there is a helpful tab "Try it out" that lets you experiment with the URLs.
+
+From RStudio, what query would you make to find the id of the animation movies company "Pixar"? Show both the query and how you extract the id from the result in your report.
+
+```{r}
+#First I search for Pixar ID
+
+str_glue("https://api.themoviedb.org/3",
+        "/search/company?",
+        "api_key={my_key}",
+        "&query=Pixar",
+        "&page=1")%>% 
+  GET() %>% 
+  content() 
+
+# after I found that ID are 3 & 114450
+
+
+```
+
+
+Part 3
+Now that we have the id of Pixar, we should be able to find all the movies that they have worked on. But you don't know how do a search for movies by companies…
+
+Go read the documentation for the /discover/movies endpoint. You will see the full list of parameters that you can use for filtering your results. Some will be familiar since they were used in the examples (e.g. with_cast=, primary_release_year= or with_genre=). Other will be new (e.g. with_runtime.lte= that lets you select just the movies that are shorter than a certain time).
+
+Write a query that will give you all the Pixar movies that have a runtime greater than an hour and sort them by descending revenue. The result will be given to you as a JSON (parsed to a list by {httr}). Convert this list to a tibble so you have one row per film and one column per interesting piece of information.
+
+```{r}
+
+# Then I  use discover to see all the movies with ID 3 and 114450
+
+str_glue("https://api.themoviedb.org/3",
+        "/discover/movie?",
+        "api_key={my_key}",
+        "&with_companies=114450|3",
+        "&language=en-US",
+        "&sort_by=primary_release_date.desc",
+        "&page=1",
+        "&sort_by=popularity.desc") %>% 
+  GET() %>% 
+  content() %>% 
+  pluck("results") %>%
+  map_df(extract, c("title")) %>%
+  View("movies3")
+ 
+
+```
+
+1 Cars
+2 Incredibles 2
+3 Inside Out
+4 Monsters, Inc.
+5 Brave
+6 Toy Story
+7 Coco
+8 Finding Nemo
+9 Toy Story 3
+10 The Incredibles
+11 WALL·E
+12 Ratatouille
+13 Up
+14 Monsters University
+15 Toy Story 2
+16 A Bug's Life
+17 Cars 2
+18 Finding Dory
+19 Cars 3
+20 The Good Dinosaur
+

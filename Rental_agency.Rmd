@@ -1,0 +1,204 @@
+---
+title: "Project 4"
+output: html_notebook
+---
+
+Part 1
+Get the full dataset out of the site. Your code should end up with a tibble of a bit more than 600 rows and 9 columns. Make sure you take the time to convert each columns to the right type and not all character.
+
+```{r}
+# First I load all the libraries I will need
+library(httr)
+library(rvest)
+library(xml2)
+library(dplyr)
+library(magrittr)
+library(tibble)
+library(stringr)
+library(janitor)
+library(lubridate)
+library (ggplot2)
+library(tidyr)
+library(devtools)
+library(purrr)
+library(ggmap)
+
+# Then I use xml2 and rvest to get the data and at the same time I start clean it.
+
+
+Rental_agency <- xml2::read_html("https://epfl-exts.github.io/rental-scrape/")
+object_type <- Rental_agency %>%
+  rvest::html_nodes(css= "div.col-sm .object-type") %>%
+  rvest::html_text(trim=TRUE)
+rooms <- Rental_agency %>%
+  rvest::html_nodes(css= "div.col-sm .rooms") %>%
+  rvest::html_text(trim=TRUE) 
+rooms <- gsub("Rooms", "", rooms)
+rooms <- gsub("NA", "", rooms)
+price <- Rental_agency %>%
+  rvest::html_nodes(css= "div.price") %>%
+  rvest::html_text(trim=TRUE)
+price <- gsub("CHF", "", price) 
+price <- gsub("Price on request NA", "", price)
+availability <- Rental_agency %>%
+  rvest::html_nodes(css= "div.availability") %>%
+  rvest::html_text(trim=TRUE)
+availability <- gsub("Availability:", "", availability)
+availability <- gsub("\nSee More", "", availability)
+address <- Rental_agency %>%
+  rvest::html_nodes(css= "div.address") %>%
+  rvest::html_text(trim=TRUE)
+living_space <- Rental_agency %>%
+  rvest::html_nodes(css= "div.living-space") %>%
+  rvest::html_text(trim=TRUE)
+living_space <- gsub("Living space:", "", living_space)
+living_space <- gsub("m2", "", living_space)
+living_space <- gsub("NA", "", living_space)
+floor <- Rental_agency %>%
+  rvest::html_nodes(css= "div.floor") %>%
+  rvest::html_text(trim=TRUE)
+floor <- gsub("Floor:", "", floor)
+floor <- gsub("NA", "", floor)
+floor <- gsub("Underground", "0", floor)
+surface <- Rental_agency %>%
+  rvest::html_nodes(css= "div.usable-surface") %>%
+  rvest::html_text(trim=TRUE)
+surface <- gsub("Usable surface:", "", surface)
+surface <- gsub("NA", "", surface)
+surface <- gsub("m2", "", surface)
+information <- Rental_agency %>%
+  rvest::html_nodes(css= "div.sec-info2") %>%
+  rvest::html_text(trim=TRUE)
+information <- gsub("Availability:", "", information)
+information <- gsub("\nSee More", "", information)
+
+# I now separete the column address to use the date
+
+Addresses = data.frame(address=c(address), stringsAsFactors = FALSE)
+Addresses$street <- sub(",.*", "", Addresses$address)
+Addresses$code <- sub(".*,", "", Addresses$address)
+Addresses$city <- sub(".* ", "", Addresses$address)
+Addresses$zip <- substr(Addresses$code, 1, 5)
+Address <- select(Addresses, street, city, zip)
+
+
+# I then use dplyr to bind columns and create the table with the rigth type of column
+
+Rental <- as_tibble(bind_cols(object_type=object_type, rooms=rooms, price=price, living_space=living_space, floor=floor, surface=surface, address=address, availability=availability, information=information)) %>%
+  mutate(rooms=as.numeric(rooms), living_space=as.numeric(living_space), price=as.numeric(price), floor=as.numeric(floor), surface=as.numeric(surface)) 
+Rental
+
+
+```
+
+
+
+Part 2
+Create a scatterplot showing how price evolve with surface of the flat.
+
+```{r}
+# Then I create the scatterplot with ggplot library
+
+ggplot(data =Rental, mapping = aes(x =surface, y = price)) +
+  geom_point() +
+  labs(title="Rental price of appartment vs. surface", x="Surface in m2", y="Price in CHF")
+
+
+```
+
+
+Part 3
+Create a bar plot showing the number of properties by postcode. Is this agency more "active" in certain areas?
+
+
+```{r}
+
+# I then create the map with the table Address
+
+Address %>%
+  ggplot(mapping = aes(x=zip, y="")) +
+  geom_bar(stat="identity") + coord_flip() +
+  labs(title="No. of properties by postcode", subtitle="Agency", x="Postal Code", y="Number of properties")
+
+```
+
+Part 4
+Create a more complex scatterplot, showing how price evolve with surface of the flat by postcode and by floor. You can use colors and/or facets to make the categories visible.
+Can you conclude anything from it? Put your thoughts below your plot. Don't overthink this: this is not so much about the quality of your analysis than checking that you can put a report together. For example, integrate the most expansive and least expansive mean postcode/floor combo in your text with inline code.
+
+```{r}
+
+# I create a table with the info required
+
+Address1 <- select(Addresses, address, street, city, zip)
+Rental1<- left_join(Rental, Address1, by=c("address"))
+
+ggplot(data =Rental1, mapping = aes(x =surface, y = price, color=zip)) +
+  geom_jitter(alpha = 0.1) +
+  facet_wrap(~ floor) +
+  labs(title="Rental price of appartment vs. surface, floor and postcode", x="Surface in m2", y="Price in CHF")
+
+# Most expensive appartments look to be the ones where the floor number is not available (probably houses?)  Also regarding the location the most expensive are located in the postcode range numbers 1223 to 1232.
+
+```
+
+
+Part 5
+Can you see any trends for listings with addresses only available on demand? Are 
+they more expansive or less? Bigger surface? Higher floor?
+
+```{r}
+ggplot(data =Rental, mapping = aes(x =surface, y = price, color=floor)) +
+  geom_point() +
+  labs(title="Rental price of appartment vs. surface", x="Surface in m2", y="Price in CHF")
+
+# The appartments with biggest surface are more expensive; in addition if we take into consideration the floor, the ones where the floor number was not communicated seems to be the more expensive.
+
+ggplot(data =Rental, mapping = aes(x =surface, y = price, color=zip)) +
+  geom_jitter(alpha = 0.1) +
+  labs(title="Rental price of appartment vs. surface, floor and postcode", x="Surface in m2", y="Price in CHF")
+
+# Again the apartmens with biggest surface are more expensive and specially those located in the postcode 1224, 1225, 1226.  
+
+```
+
+
+Part 6
+Convert a subset of 30 addresses to latitude and longitude using an API and plot them on a map using {ggmap} (or {leaflet} if you could not get {ggmap} to work).
+
+
+```{r}
+
+# I chose to use the last 30 addresses
+
+Rental30 <- tail(Rental1, 30)
+Address30 <- Rental30 %>% mutate(address=str_replace_all(address, " ", "+")) %>% mutate(http=str_c("https://geocode.xyz/",address,"?json=1")) %>% 
+  select(http) 
+Http_Address30 <- pull(Address30, http)
+Get_Address30 <- function(url) {GET(url) %>%
+    content()} 
+
+Plot_30 <- Http_Address30 %>% map(Get_Address30)
+Long_latt <- tibble(longt=Plot_30 %>%
+                      map(pluck, "longt") %>%
+                      tibble(latt=Plot_30 %>%
+                               map(pluck, "latt") %>%
+                               unlist))
+
+#I get Geneva georeferences in Bounding Box
+
+geneva_area <- c(left=5.8894, bottom=46.0463, right=6.3893, top=46.413)
+geneva_map <- get_stamenmap(geneva_area, zoom=10, maptype = "toner") %>%
+  ggmap()
+geneva_map %>%
+  (geneva_map) +
+  geom_point(data = LL, aes(x=longt, y=latt), alpha=0.5)
+
+```
+
+
+Add a new chunk by clicking the *Insert Chunk* button on the toolbar or by pressing *Ctrl+Alt+I*.
+
+When you save the notebook, an HTML file containing the code and output will be saved alongside it (click the *Preview* button or press *Ctrl+Shift+K* to preview the HTML file).
+
+The preview shows you a rendered HTML copy of the contents of the editor. Consequently, unlike *Knit*, *Preview* does not run any R code chunks. Instead, the output of the chunk when it was last run in the editor is displayed.

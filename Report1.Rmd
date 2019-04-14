@@ -1,0 +1,101 @@
+---
+title: "Report No. 1"
+output: html_notebook
+---
+
+
+```{r}
+# First I import both files in the NoteBook
+professors <- read.csv("C:/Users/Ana/Desktop/Data50/Project 1/professors.csv")
+View(professors)
+students <- read.csv("C:/Users/Ana/Desktop/Data50/Project 1/students.csv")
+View(students)
+# Then I clean-up the data of both files (professors & students)
+library(readr)
+library(janitor)
+library(dplyr)
+library(tibble)
+library(tidyr)
+# For Professors
+professor_table <- as_tibble(rownames_to_column(professors, "id") )
+professor_table1 <- clean_names(professor_table)
+professor_tabl <- select(professor_table1, id, -x, prof_totally_disagree = totally_disagree, prof_disagree = disagree, prof_agree = agree, prof_totally_agree = totally_agree)
+# for students
+students_table <- as_tibble(rownames_to_column(students, "id") )
+students_table1 <- clean_names(students_table)
+students_tabl <- select(students_table1, id, -x, stud_totally_disagree = totally_disagree, stud_disagree = disagree, stud_agree = agree, stud_totally_agree = totally_agree)
+# now I join both tables
+id_table <- left_join(students_tabl, professor_tabl, by=c("id"))
+```
+
+Part No.1
+
+What is the total number of answers obtained from students?
+What is the total number of answers obtained from professors?
+Does each question have the same number of answers?
+
+```{r}
+# To answer the first question, I create a new column to summarize the number ofanswers  given by the students and then I use sum to see the number.
+id_table %>% 
+  mutate(stud_answers = stud_totally_disagree + stud_disagree + stud_totally_agree + stud_agree) %>% 
+  summarise(total_st_answers = sum(stud_answers))
+# answer: 7748
+
+
+# I do the same for the answers given by the professors
+id_table %>% 
+  mutate(prof_answers = prof_totally_disagree + prof_disagree + prof_totally_agree + prof_agree) %>% 
+  summarise(total_prof_answers = sum(prof_answers))
+# answer: 3654 
+
+# For question no. 3, I summarize the number of answers per question in a new column and I pull the values
+id_table %>% 
+  mutate(all_answers = stud_totally_disagree + stud_disagree + stud_totally_agree + stud_agree + prof_totally_disagree + prof_disagree + prof_totally_agree + prof_agree) %>% 
+  pull(all_answers)
+# answer: no
+```
+
+
+
+Part 2
+Obtain side-by-side bar charts comparing the distribution of answers of the students versus the professors for each question.
+
+```{r}
+# First I create a table only with the answers from Students and Professors
+library(ggplot2)
+library(dplyr)
+New_Stud_table <- id_table %>% 
+  mutate(stud_answers = stud_totally_disagree + stud_disagree + stud_totally_agree + stud_agree) 
+New_prof_table <- id_table %>% 
+  mutate(prof_answers = prof_totally_disagree + prof_disagree + prof_totally_agree + prof_agree) 
+RWnew_stud_table <- select(New_Stud_table, id, stud_answers)
+RWnew_prof_table <- select(New_prof_table, id, prof_answers)
+Table <- left_join(RWnew_prof_table, RWnew_stud_table, by="id")
+Table_vs <- Table %>% 
+  select(everything()) %>% 
+  mutate(all_answers = stud_answers + prof_answers)
+# and finally I create the chart using gather and plot
+Table_vs1 <- gather(Table_vs, event, total, prof_answers:stud_answers)
+plot <- ggplot(Table_vs1, aes(id, total, fill=event))
+plot <- plot + geom_bar(stat = "identity", position = 'dodge')
+plot
+```
+
+Part 3
+With Likert scale data, we cannot use the mean as a measure of central tendency as it has no meaning (i.e. what is the average of strongly agree and disagree?).
+
+The most appropriate measure of central tendency is the mode. Compute the mode for the students and professors for each of the questions.
+
+```{r}
+#I create a vector with the total of answers given by students and professors to calculate the mode.
+Prof_mode <- c(115, 115, 115, 115, 115, 115, 115, 115, 115, 115, 115, 115, 115, 115, 115,115, 115, 115, 115, 115, 115, 115, 115, 115, 115, 113, 112, 113, 111, 112, 115, 103)
+names(table(Prof_mode))[table(Prof_mode)==max(table(Prof_mode))]
+# Mode Professors answers: 115
+ Stud_mode <- c(244, 244, 244, 244, 244, 244, 244, 244, 244, 244, 244, 244, 244, 244, 244,244, 244, 244, 244, 244,244, 244, 244, 244, 244, 233, 234, 239, 233, 241, 238, 230)
+ names(table(Stud_mode))[table(Stud_mode)==max(table(Stud_mode))]
+# Mode Students answers: 244
+
+```
+
+
+

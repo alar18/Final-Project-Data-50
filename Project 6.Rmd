@@ -1,0 +1,264 @@
+---
+title: "Project 6"
+output: html_notebook
+---
+
+
+```{r}
+
+#  I write all libraries I will require
+
+library(dplyr)
+library(tidyverse)
+library(tidyr)
+library(httr)
+library(purrr)
+library(ggplot2)
+library(reshape2)
+library(stringr)
+
+
+#After I import the date of the excel file
+
+athletes <- read_excel("C:/Users/Ana/Desktop/Data50/Project 6/olympics.xlsx", sheet = "athletes") %>%
+  rename(athlete_id = ID)
+country <- read_excel("C:/Users/Ana/Desktop/Data50/Project 6/olympics.xlsx", sheet = "country")
+games <- read_excel("C:/Users/Ana/Desktop/Data50/Project 6/olympics.xlsx", sheet = "games")
+medals <- read_excel("C:/Users/Ana/Desktop/Data50/Project 6/olympics.xlsx", sheet = "medals")
+
+
+# And then join the tables to have the names of the athletes
+
+country_athlete <- left_join(country, athletes, by=c("athlete_id"))
+medals_athlete <- left_join(medals, athletes, by=c("athlete_id"))
+
+
+```
+
+ Part 1
+Have some athletes competed for different countries over time?
+
+```{r}
+
+country_athlete %>%
+    select(athlete_id, Name, NOC) %>%
+    group_by(athlete_id, Name) %>%
+    filter(n() > 1, sum(duplicated(NOC)) == 0) %>%
+    ungroup()
+
+```
+
+
+Part 2
+Who are the ten athletes that took part in most games?
+
+```{r}
+
+# I then group by athlete_id and summarise the number of games.
+# Finally I arrange it with desc
+
+country_athlete %>% 
+  mutate(number=athlete_id/athlete_id) %>% 
+  group_by(Name) %>% 
+  summarise(number=sum(number)) %>%
+  arrange(desc(number)) %>%
+  head(10)
+
+```
+
+
+Part 3
+What athlete(s) kept a Gold medal for the longest time?
+
+```{r}
+
+
+gold <- select(medals_athlete, athlete_id, Games, Medal, Name) %>% 
+  filter(Medal=="Gold") %>%
+  mutate(number=athlete_id/athlete_id) %>% 
+  group_by(Name) %>% 
+  summarise(number=sum(number)) %>%
+  arrange(desc(number))
+gold %>%
+  head(5)
+
+
+```
+
+
+Part 4
+What country(ies) kept a Gold medal for the longest time?
+
+```{r}
+
+gold_country <- select(medals, athlete_id, Games, Medal, Team) %>% 
+  filter(Medal=="Gold") %>%
+  mutate(number=athlete_id/athlete_id) %>%
+  group_by(Team) %>%
+  summarise(number=sum(number)) %>%
+  arrange(desc(number))
+gold_country %>%
+  head(5)
+  
+
+```
+
+
+Part 5
+Who are the ten athletes that competed in the most events (some athletes take part in more than one event during games) ?
+
+```{r}
+
+country_athlete %>% 
+  mutate(number=athlete_id/athlete_id) %>% 
+  group_by(Games, Name) %>% 
+  summarise(number=sum(number)) %>%
+  arrange(desc(number)) %>%
+  head(10)
+
+
+```
+
+
+Part 6
+Create a new table showing the number of medals per country (rows) and per year (column). Keep only the 15 countries with the most medals overall.
+
+
+```{r}
+
+medals_country <- select(medals, athlete_id, Games, Medal, Team) %>% 
+  filter(Medal!="NA") %>%
+  mutate(number=athlete_id/athlete_id) %>%
+  group_by(Team, Games) %>%
+  summarise(number=sum(number)) %>%
+  arrange(desc(number)) 
+  
+top_15 <- medals_country %>% 
+  tidyr::spread(Games, number, fill=0) 
+
+total <- as.tibble(rowSums(top_15[,c(2:52)]))
+
+country_top15 <- merge(top_15, total, by="row.names", all.x=TRUE) %>%
+  arrange(desc(value)) 
+
+country_top15%>%
+  head(15)
+
+```
+
+
+Part 7
+Create a scatterplot showing the average height and weight of competitors per sport (one dot per sport). Add labels with the sport names for:
+
+the largest average height
+the largest average weight
+the smallest average height
+the smallest average weight
+the largest average BMI
+the smallest average BMI
+It might be that the same dot qualify for multiple labels. The formula to calculate Body Mass Index (BMI) is:
+weight in kg / (height in meters)^2
+ 
+ + geom_label(data=filter(plotathlete, ave_Weight %in% range(ave_Weight) | ave_Height %in% range(ave_Height) | bm %in% range(bm)), nudge_x = 1)
+ 
+```{r}
+
+#First I create the table with the date
+
+plotathlete <- medals_athlete %>%  
+  select(athlete_id, Event, Height, Weight) %>%
+  group_by(Event, Height, Weight) %>%
+  filter(Height!="NA", Weight!="NA") %>%
+  group_by(Event) %>%
+  mutate(ave_Weight = mean(Weight)) %>%
+  mutate(ave_Height = mean(Height)) %>%
+  mutate(bm = Weight/((Height/100)^2)) 
+
+# I then create the plot with average weight, height and body mass
+
+plota <- melt(plotathlete, id= c("ave_Weight", "ave_Height", "bm"))
+
+plota1 <- ggplot(plota, aes(x=ave_Weight, y=ave_Height, colour=bm))  
+  
+plota1 + geom_point(shape=21) + labs(title="Average", subtitle="weight, height and body massPer Sport", x="Average Weight", y="Average Height", colour="Body Mass") 
+
+# And finalle the plot with max and min values
+
+#max_min <- mutate=range(plotathlete$ave_Weight))
+
+```
+ 
+```{r}
+
+
+
+```
+ 
+
+```{r}
+
+plotathlete <- medals_athlete %>%  
+  select(athlete_id, Event, Height, Weight) %>%
+  group_by(Event, Height, Weight) %>%
+  filter(Height!="NA", Weight!="NA") %>%
+  group_by(Event) %>%
+  mutate(Ave_Weight = mean(Weight)) %>%
+  mutate(Ave_Height = mean(Height)) %>%
+  mutate(Bm = Weight/((Height/100)*(Height/100)))
+
+plotathlete %>% ggplot(aes(x=Ave_Weight, y=Ave_Height, label = Event)) + 
+    geom_point(shape = 21, colour="green")  +
+      labs(title="Average Weight, Height and Body Mass of Athletes", subtitle="Per Sport",
+      x="Average Weight", y="Average Height", colour="Body Mass")
+
+```
+
+
+Part 8
+Create a line plot showing the number of medals given by year (one line for Gold, one line for Silver and one line for Bronze). Does it change over time? Use facet to separate the medals at Summer games and Winter games.
+
+
+```{r}
+# I create first the table to do the line plot
+
+type_medals <- medals %>% 
+  separate(Games, c("Games", "Season"))%>%
+  mutate_at(vars(Games), as.numeric) %>%
+  select(athlete_id, Games, Season, Medal) %>%
+  mutate(number=athlete_id/athlete_id) %>%
+  filter(Medal!="NA") %>%
+  arrange(Games, Medal, Season) %>%
+  group_by(Games, Medal) %>%
+  summarise(number=sum(number))%>%
+  spread(key="Medal", value="number", fill=0) 
+
+plot_medals <- melt(type_medals, id.vars = "Games")
+
+lineplot <- ggplot(plot_medals, aes(x = Games, y = value, colour = variable))
+
+lineplot + geom_line() + labs (title="Number of medals by year",
+       x="Year", y="Number of Medals")
+
+# Then I create the facet plot by season
+
+type_medals1 <- medals %>% 
+  separate(Games, c("Games", "Season"))%>%
+  mutate_at(vars(Games), as.numeric) %>%
+  select(athlete_id, Games, Season, Medal) %>%
+  mutate(number=athlete_id/athlete_id) %>%
+  filter(Medal!="NA") %>%
+  arrange(Games, Medal, Season) %>%
+  group_by(Games, Medal, Season) %>%
+  summarise(number=sum(number))%>%
+  spread(key="Medal", value="number", fill=0) %>%
+  mutate(total=sum(Gold+Silver+Bronze))
+
+type_medals1 %>% 
+  ggplot(aes(x=Games, y=total)) + 
+  geom_jitter() + 
+  facet_wrap(~Season) + labs (title="Number of medals by year and Season",
+       x="Year", y="Number of Medals")
+
+
+```
+

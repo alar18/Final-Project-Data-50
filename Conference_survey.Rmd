@@ -1,0 +1,108 @@
+---
+title: "Project 2"
+output: html_notebook
+
+---
+
+Part 1
+Load the data and answer the following questions:
+
+How many survey participants were there?
+What are the data types of each column?
+What are the top 3 universities with the most survey participants?
+
+
+```{r}
+# First I import the file and I clean it and convert it in a table
+library(janitor)
+library(dplyr)
+library(stringr)
+library(tibble)
+library(ggplot2)
+library(tidyverse)
+library(httr)
+library(reshape2)
+
+Conf_Survey <- clean_names(survey) %>% 
+  as_tibble(rownames_to_column(survey, "id"))
+
+#After I use Glimpse to see the table date 
+
+glimpse(Conf_Survey)
+
+# How many survey participants were there? 30
+# WHat are the date types of each column? int,fct, fct, int, int, int,int, fct
+
+# I then group universities and summarise their number to see the top 3 universities
+
+Conf_Survey %>% 
+  mutate(number=number_of_employees/number_of_employees) %>% 
+  group_by(university) %>% 
+  summarise(number=sum(number))
+
+# What are the top 3 universities of participants? Delf, Eindhoven & Groningen
+
+```
+
+Part 2
+Obtain a horizontal bar graph of the number of survey participants for the different positions given in the column Position.
+
+```{r}
+# I create a vector with the info related to the position of the participants to the survey
+
+
+Position_bar <- Conf_Survey %>% 
+mutate(number=number_of_employees/number_of_employees) %>% 
+group_by(position) %>% 
+summarise(number=sum(number))
+
+# After I create the horizontal graph
+ggplot(data=Position_bar, mapping = aes(x=position, y=number)) +
+  geom_bar(stat="identity") +
+  coord_flip() 
+
+```
+
+Part 3
+Group the data in the column Number of employees in the following bins:
+
+Small (0 to 10)
+Medium (10 to 20)
+Large (20 to 100)
+Extra large(over 100)
+Then plot a bar chart with {ggplot2} of the number of values in each of the bins.
+
+```{r}
+
+
+#First I group and arrange the date according to the Number of employees
+# AfterI create the bar chart
+
+Conf_Survey %>% 
+  mutate(bins=case_when(number_of_employees <= 9 ~ "Small", number_of_employees <= 19 ~ "Medium", number_of_employees <= 99 ~ "Large", TRUE ~ "Extr large")) %>%
+  arrange(number_of_employees) %>% 
+  select(number_of_employees, bins) %>% 
+  ggplot(mapping = aes(x= bins, y = number_of_employees)) +
+  geom_bar(stat="identity") +
+  labs(title="No. of Employees", subtitle="By Size", x="Bins", y="Number of Employees")
+
+```
+
+
+Part 4
+Obtain a stacked horizontal bar plot with {ggplot2} that gives the percentage of employees that are Ph.D. students, postdocs and professors for each research group. Use a custom theme.
+
+We have not covered , so you will have to study the documentation, and/or some blog posts. There is also a great book about {ggplot2} recipes that I recommend you check out: The hitchhiker guide to ggplot2. The book is pay-as-you-want, so select Package "The book" and choose a number from 0 and 30 dollars.
+
+```{r}
+# I create a new table only with the positions and I use mel to create a vairable.
+# then I use ggplot to create the chart
+
+Conf_Survey1 <- select(Conf_Survey, 1, 5,6,7)
+Conf_Survey2 <- melt(Conf_Survey1, id.var="x")
+ggplot(Conf_Survey2, aes(x = x, y = value, fill = variable)) +
+  geom_bar(stat = "identity") + coord_flip() +
+  labs(title = "No. of Employees by position", x = "No. of Employees", y = "Team")
+
+```
+

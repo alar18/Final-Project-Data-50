@@ -1,0 +1,305 @@
+---
+title: "Project 3"
+output: html_notebook
+---
+
+
+Part 1
+The MANDATES table has information about when people where elected, when their mandate ended and on which assembly they sat.
+
+Using a line plot, show how the number of people with an active mandate changed over the years. You will have one line per assembly.
+
+```{r}
+
+# I write down all the libraries I will use
+
+library(dplyr)
+library(tidyverse)
+library(tidyr)
+library(lubridate)
+library(httr)
+library(purrr)
+library(DBI)
+library(RSQLite)
+library(DBI)
+library(janitor)
+library(reshape2)
+library(ggplot2)
+library(ggmap)
+
+# First I import the db file with RSQLite in R Studio and save in a vector each table
+
+Z_politicians <- dbConnect(RSQLite::SQLite(), "zh_politicians.db")
+dbListTables(Z_politicians)
+Addresses <- DBI::dbGetQuery(Z_politicians, "SELECT * FROM ADDRESSES;")
+Affiliations <- DBI::dbGetQuery(Z_politicians, "SELECT * FROM AFFILIATIONS;")
+Mandates <- DBI::dbGetQuery(Z_politicians, "SELECT * FROM MANDATES;")
+Persons <- DBI::dbGetQuery(Z_politicians, "SELECT * FROM PERSONS;")
+dbDisconnect(Z_politicians)
+
+# I disconnect from SQL and conver the table Mandates with tibble and clean the table.
+
+Mandates_dates <- as_tibble(rownames_to_column(Mandates, "Politician"))
+Mandates_dates1 <- clean_names(Mandates_dates)
+
+# I create a table with the columns I want to plt
+Line_plot <- select(Mandates_dates1, 1, 3, 4, 7, 10)
+Line_plot
+
+# I want to create the chart by a range of time, so I need to know the older and nearest year of the people mandate
+
+aggregate(mandate_start_year ~ assembly, Line_plot, function(x) max(x))
+aggregate(mandate_start_year ~ assembly, Line_plot, function(x) min(x))
+
+#As I see that there is no date for the mandate_start_date, I will start from 1800
+
+Line_plot %>% 
+  mutate(mandate_year=case_when(mandate_start_year <= 1850 ~ "1800_1850", mandate_start_year <= 1899 ~ "1851_1899", mandate_start_year <= 1950 ~ "1900_1950", mandate_start_year <= 2000 ~ "1951_2000", TRUE ~ "2001_2018")) %>% 
+  arrange(mandate_start_year) %>% 
+  select(mandate_year, politician) %>% 
+  ggplot(mapping = aes(x= mandate_year, y = politician)) +
+  geom_bar(stat="identity") + labs(title="Mandate Persons per year", x="Period of time", y="Number of Mandates")
+
+```
+
+
+Part 2
+Expand on the plot you just produced. This time you want to show a facet charts with one chart per assembly. In each chart, have one line for men and one line for women.
+
+```{r}
+# I take the column Gender in the table Persons to join it with Line_plot
+
+Persons_Assembly <- select(Persons, person_id = ID, gender = GENDER)
+Persons_Assembly_chart <- left_join(Persons_Assembly, Line_plot, by= "person_id")
+View(Persons_Assembly_chart)
+
+# I start to create the chart by gender
+
+Persons_Assembly_chart %>% 
+  mutate(mandate_year=case_when(mandate_start_year <= 1850 ~ "1800_1850", mandate_start_year <= 1899 ~ "1800_1899", mandate_start_year <= 1950 ~ "1900_1950", mandate_start_year <= 2000 ~ "1951_2000", TRUE ~ "2001_2018")) %>% arrange(mandate_start_year) %>% 
+  select(mandate_year, politician, gender, assembly) %>% 
+  ggplot(mapping = aes(x= mandate_year, y = politician, color = gender, group = assembly)) +
+  geom_bar(stat="identity") +
+  facet_grid(.~assembly) +
+  labs(title="Mandate Persons per year and gender", x="Period of time", y="Number of Mandates")
+
+```
+
+
+Part 3
+Create a new plot showing the proportion of elected politicians from each party in year  2000. You want to show this by assembly, so use one facet with one pie chart per assembly. Also show your result in a table.
+
+
+
+```{r}
+# First I create a table with the number of people elected afer 2000 per assembly to create the pie chart
+Table_mandate <- filter(Line_plot, mandate_start_year >=2000)
+Table_mandate %>% 
+  mutate(mandate_year=case_when(mandate_start_year <=2000 ~ "2000", mandate_start_year <= 2004 ~ "2001_2004", mandate_start_year <= 2008 ~ "2005_2008", mandate_start_year <= 2012 ~ "2009_2012", mandate_start_year <= 2016 ~ "2013_2016", TRUE ~"2017_")) %>% 
+  arrange(mandate_year) %>% 
+  ggplot(aes(x = "", y = mandate_start_year, fill = mandate_year)) +
+  geom_bar(stat = "identity", width = 1, position = position_fill()) +
+  coord_polar(theta = "y") +
+  facet_wrap( ~ assembly)
+
+# Then I create a table with the number of people elected in 2000 per assembly
+
+Table_mandate_2000 <-  filter(Line_plot, mandate_start_year == 2000 )
+Table_mandate_2000
+
+
+```
+
+
+
+
+
+```{r}
+
+
+Mandates_dates <- as_tibble(rownames_to_column(Mandates, "Politician"))
+Mandates_dates1 <- clean_names(Mandates_dates)
+
+# I create only one column for the Mandate start date and for Mandate end date
+
+Dates_start <- as.Date(with(Mandates_dates1, paste(mandate_start_year, mandate_start_month, mandate_start_day, sep="-")), "%Y-%m-%d")
+Mandate_start_table <- enframe(Dates_start)
+
+Dates_end <- as.Date(with(Mandates_dates1, paste(mandate_end_year, mandate_end_month, mandate_end_day, sep="-")), "%Y-%m-%d")
+Mandate_end_table <- enframe(Dates_end)
+
+Dates_start_end <- merge(x = Mandate_start_table, y = Mandate_end_table, by = "name") %>%  
+  clean_names()
+
+
+Mandate_dates_zh <- select(Mandates_dates1, 1, 3, 4)
+New_Mandate_table <- merge(Mandate_dates_zh, Dates_start_end, by="row.names", all.x=TRUE)
+New_Mandate_table1 <- select(New_Mandate_table, person_id, assembly, date_start_mandate = value_x, date_end_mandate = value_y)
+New_Mandate_table1
+
+```
+
+
+Part 4
+Have another look at the composition of the assemblies: this time use a line chart to show how it changed over the years.
+
+```{r}
+# I use the table line_plot and creat the line chart 
+
+Line_plot %>% 
+  ggplot(mapping = aes(x= mandate_start_year, y = mandate_end_year, colour=assembly)) +
+  geom_line() +
+  labs(title="Mandate per assembly over the years", x="Period of time", y="Assembly") +
+  theme_classic()
+
+```
+
+
+Part 5
+For the politicians that have a YEAR_OF_DEATH in the data, find the average life span. Does it change if you go by a TITLE? Use a plot to show the difference (or its absence).
+
+```{r}
+
+# I clean the file Persons and create a column to find the average life span
+Persons_data <- clean_names(Persons)
+
+# I check the class data
+glimpse(Persons_data)
+
+# As I remark that Year of death is character column I change it into numeric and take out the rows with NA value
+
+ Life_span <- Persons_data %>% 
+   mutate_at("year_of_death",as.integer) %>% 
+   mutate(ls=year_of_death - year_of_birth) %>% 
+   group_by(title)
+Average_life <- Life_span[complete.cases(Life_span), ] %>% 
+  mutate_at("ls", as.integer)
+summary(Average_life)
+
+# the average live span is 80.21
+
+ggplot(data=Average_life, mapping = aes(x=title, y=ls)) +
+  geom_bar(stat="identity") + coord_flip()  +
+  labs(title="Average Age Span", subtitle="Title", x="Title of Mandate", y="Years")
+
+# there is wrong data with the date of birth and/or death in some rows.
+
+```
+
+
+Part 6
+Which politicians have had the most mandates? Create a top 10 horizontal bar chart.
+
+```{r}
+
+# I clean the data of Affiliations to create the list of top 10 parties
+Addresses1 <- clean_names(Addresses)
+
+# After I arrange in decreasing order the number of mandates per party
+
+Top10 <- select(Addresses1, id, mandate_start_year, person_id) %>%
+  mutate(number=id/id) %>% 
+  group_by(person_id) %>% 
+  summarise(number=sum(number)) %>%
+  arrange(desc(number)) %>%
+  filter(number>1) %>%
+  head(10)
+
+# Finally I create the horizontal chart
+Top10 %>% 
+  ggplot(mapping = aes(x=person_id, y=number)) +
+  geom_bar(stat="identity") + coord_flip()
+
+
+```
+
+
+Part 7
+Do some politicians have multiple mandate at the same time?
+
+```{r}
+# I create a table with the politicians name and the dates of their mandate.
+# After I count the number of persons who have got several mandates and also if the mandate start in the same year
+
+Politicians <- mutate(Persons_data, person_id = id) %>% 
+  rename() %>% 
+  left_join(Table_mandate, Politicians, by="person_id") %>% 
+  group_by(person_id)
+Politicians %>% 
+  count(person_id, mandate_start_year) %>% 
+  filter(n>1)
+
+# There are no politicians with multiple mandate at the same time
+
+```
+
+
+
+Part 8
+Have some politicians been affiliated to different party over the years?
+
+```{r}
+
+# First I clean the table affiliations
+Affiliation_politicians <- clean_names(Affiliations) %>% 
+  select(id, person_id, party, affiliation_start_year)
+# After I extract wtih summarise, filter and count the affiliated to a different party
+Affiliation_politicians %>% 
+  mutate(number=id/id) %>% 
+  group_by(party) %>%
+  summarise(number=sum(number)) %>% 
+  arrange((number)) %>%
+  filter(number>1) %>%
+  count(party) %>%
+  filter(n>=2) %>%
+  pull()
+
+# There are no affiliates to different party
+
+
+```
+
+
+
+Part 9
+Take a sample of 20 politicians with a listed address and plot them on a {leaflet} map. You will need to use an API that converts the addresses to geocoordinates.
+
+```{r}
+
+# I write down the library required to plot the list of 20 politicians
+
+library(httr)
+library(purrr)
+library(magrittr)
+library(leaflet)
+library(devtools)
+library(tidyverse)
+library(ggplot2)
+
+
+# I use the cleaned Addresses1 to create a table with the 20 politicians and I use GeoCode
+
+Addresses_20 <- Addresses1 %>% 
+  arrange(desc(mandate_start_year)) %>%
+  select(person_id, city, mandate_start_year) %>% 
+  sample_n(20) %>% 
+  mutate(http=str_c("https://geocode.xyz/",city,"?json=1")) %>% 
+  select(http) 
+
+#I get Zurich georeferences in Bounding Box
+
+zurich <- c(left=6, bottom=46, right=10, top=48)
+zurich_map <- get_stamenmap(zurich, zoom=8,maptype = "toner") %>%
+  ggmap()
+zurich_map
+
+# And I try to visualize the map
+
+ggmap(zurich_map) +
+  geom_point(data=Addresses_20, aes(X=city), alpha=0.5)
+
+# I EXPERIENCED SEVERAL PROBLEMS WIHT GGMAP.
+
+```
+
+
